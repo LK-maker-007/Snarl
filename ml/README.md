@@ -49,3 +49,17 @@ Measured (efficient model, 3 frames @ 160x256, host CPU, float32): ~0.05 GMACs, 
 p50 ~2.7 ms, and lossless conversion (decoded-peak parity max_px 0.00 vs PyTorch). These are
 size/speed/fidelity numbers; model accuracy is validated separately once trained on real data.
 
+## Training
+
+Train the heatmap model (`data.py` datasets, `losses.py` loss/metrics, `train.py` loop):
+```
+python -m snarl_ml.train --epochs 8                 # synthetic data (validates the pipeline)
+python -m snarl_ml.train --data-dir <clips> --epochs 50   # real clips
+```
+On-disk clip format: one directory per clip with `frames.npy` (T,H,W,3 uint8) and `labels.csv`
+(header `frame,visibility,x,y`; x,y ignored when visibility is 0). Label your captured footage in
+CVAT or Label Studio and export to that per-frame point format.
+
+On the synthetic moving ball the loop converges to ~1 px decoded error, which validates the
+machinery end-to-end. Real accuracy requires training on real, consented cricket data.
+

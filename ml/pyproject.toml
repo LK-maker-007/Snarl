@@ -31,6 +31,8 @@ python_version = "3.12"
 strict = true
 # torch/litert are untyped to mypy (Any); allow subclassing nn.Module without misc errors.
 disallow_subclassing_any = false
+# torch stubs leave many methods (e.g. Tensor.backward) untyped; don't fail on calling them.
+disallow_untyped_calls = false
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
