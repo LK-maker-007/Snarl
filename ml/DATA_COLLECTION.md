@@ -48,9 +48,10 @@ quantity.
 
 ## From footage to a trainable dataset
 1. **Film** per the rules above (consent recorded).
-2. **Extract frames** from each clip (one folder per clip):
+2. **Extract frames** from each clip into a folder (needs the `ffmpeg` binary installed):
    ```
-   mkdir clip0 && ffmpeg -i clip0.mp4 -qscale:v 2 clip0/%05d.png
+   python -m snarl_ml.video clip0.mp4 clips-root/clip0      # frames -> 00001.png, 00002.png, ...
+   # (equivalently: ffmpeg -i clip0.mp4 -qscale:v 2 clips-root/clip0/%05d.png)
    ```
 3. **Label the ball** per frame in **CVAT or Label Studio** (self-hosted, free): mark a single
    point on the ball in each frame; mark frames where the ball isn't visible as not-visible.
