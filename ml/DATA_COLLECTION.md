@@ -63,6 +63,12 @@ quantity.
    python -m snarl_ml.train --image-dir <clips-root> --epochs 50
    ```
    (`ImageClipDataset` reads each clip's images + `labels.csv`.)
+6. **Measure accuracy** on held-out clips, so "is it accurate" is a number, not a feeling:
+   ```
+   python -m snarl_ml.evaluate --checkpoint checkpoint.pt --image-dir <held-out-clips> --tolerance 4
+   ```
+   Reports detection precision/recall/F1 (a hit must land within `--tolerance` px of the true
+   ball) and the median / p90 pixel error. Drive these up with every batch of new footage.
 
 ## Dataset format (the contract)
 ```

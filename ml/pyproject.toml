@@ -21,6 +21,8 @@ dev = ["pytest", "ruff", "mypy"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+# Notebooks are Colab-targeted (shell magics, environment-only imports); don't lint them as source.
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 # Strict-but-sane set: no silent failures, clean code.
