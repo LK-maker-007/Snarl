@@ -10,7 +10,9 @@ what this validates — real accuracy requires real, consented cricket data.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sized
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 import torch
@@ -64,7 +66,7 @@ def run_training(
     torch.manual_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    total = len(dataset)  # type: ignore[arg-type]  # our datasets implement __len__
+    total = len(cast(Sized, dataset))
     val_len = max(1, total // 5)
     train_set, val_set = random_split(
         dataset, [total - val_len, val_len], generator=torch.Generator().manual_seed(seed)
