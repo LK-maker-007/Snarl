@@ -1,10 +1,11 @@
 """Train the ball-tracking heatmap model.
 
-Trains LightTrackNet on either synthetic clips (default, to validate the pipeline) or on-disk
-clips (``--data-dir``, the real-data format in ``data.py``). Reports per-epoch loss and the mean
-decoded pixel error on a held-out split, and saves the best checkpoint. Requires torch; run on a
-machine/Colab with a GPU for real training. The pipeline (loss decreasing, error reported) is
-what this validates — real accuracy requires real, consented cricket data.
+Trains LightTrackNet on synthetic clips (default, to validate the pipeline), on-disk npy clips
+(``--data-dir``), or image-frame clips (``--image-dir``, e.g. TrackNet data). Reports per-epoch
+loss and mean decoded pixel error on a held-out split, and saves the best checkpoint. Optionally
+warm-starts from a checkpoint (``--init-from``) to fine-tune. Requires torch; run on a machine or
+Colab with a GPU for real training. The pipeline (loss decreasing, error reported) is what this
+validates — real accuracy requires real, consented cricket data.
 """
 
 from __future__ import annotations
@@ -61,6 +62,7 @@ def run_training(
     learning_rate: float = 1e-3,
     seed: int = 0,
     checkpoint_path: str | None = None,
+    init_from: str | None = None,
 ) -> list[EpochStats]:
     """Train the model and return per-epoch stats, saving the best checkpoint if a path is given."""
     torch.manual_seed(seed)
@@ -79,6 +81,8 @@ def run_training(
     )
 
     model = LightTrackNet(num_frames=num_frames).to(device)
+    if init_from is not None:
+        model.load_state_dict(torch.load(init_from, map_location=device))
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     history: list[EpochStats] = []
@@ -108,6 +112,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train the ball-tracking heatmap model.")
     parser.add_argument("--data-dir", default=None, help="npy clips; omit for synthetic")
     parser.add_argument("--image-dir", default=None, help="image-frame clips (e.g. TrackNet data)")
+    parser.add_argument("--image-glob", default="*.png", help="frame glob for --image-dir")
     parser.add_argument("--frames", type=int, default=3)
     parser.add_argument("--height", type=int, default=64)
     parser.add_argument("--width", type=int, default=64)
@@ -115,12 +120,15 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--out", default="checkpoint.pt")
+    parser.add_argument("--init-from", default=None, help="load weights from this checkpoint first")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     dataset: Dataset[tuple[torch.Tensor, torch.Tensor]]
     if args.image_dir is not None:
-        dataset = ImageClipDataset(args.image_dir, num_frames=args.frames)
+        dataset = ImageClipDataset(
+            args.image_dir, num_frames=args.frames, image_glob=args.image_glob
+        )
         source = args.image_dir
     elif args.data_dir is not None:
         dataset = ClipDataset(args.data_dir, num_frames=args.frames)
@@ -139,6 +147,7 @@ def main() -> None:
         learning_rate=args.lr,
         seed=args.seed,
         checkpoint_path=args.out,
+        init_from=args.init_from,
     )
     for stats in history:
         print(

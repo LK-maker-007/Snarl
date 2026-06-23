@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -15,3 +17,16 @@ def test_training_reduces_loss() -> None:
     # The loop must actually optimise: training loss goes down over epochs.
     assert history[-1].train_loss < history[0].train_loss
     assert history[-1].val_pixel_error >= 0.0
+
+
+def test_init_from_loads_checkpoint(tmp_path: Path) -> None:
+    dataset = SyntheticBallDataset(size=16, num_frames=3, height=48, width=48, seed=0)
+    checkpoint = tmp_path / "init.pt"
+    run_training(
+        dataset, num_frames=3, epochs=1, batch_size=8, seed=0, checkpoint_path=str(checkpoint)
+    )
+    assert checkpoint.exists()
+    history = run_training(
+        dataset, num_frames=3, epochs=1, batch_size=8, seed=0, init_from=str(checkpoint)
+    )
+    assert len(history) == 1
