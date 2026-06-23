@@ -1,0 +1,45 @@
+name: CI
+
+# Activates once app/package-lock.json is committed (run `cd app && npm install` first).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app-quality:
+    name: App lint / types / tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test -- --ci
+
+  ml-quality:
+    name: ML lint / types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ruff mypy
+      - run: ruff check ml
+      - run: mypy ml
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2

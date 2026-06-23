@@ -1,0 +1,54 @@
+# Root .gitignore. The React Native app has its own app/.gitignore; this covers
+# the repo root and the ml/ training area.
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node (root-level only; app/ has its own)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Python (ml/)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# ML data and model artifacts — never commit datasets or large weights
+ml/data/
+ml/runs/
+ml/checkpoints/
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.engine
+
+# Secrets / local config — never commit
+.env
+.env.*
+secrets/
+*.keystore
+!app/android/app/debug.keystore
+.claude/settings.local.json
+
+# Internal docs and local Claude config — kept local, NOT published to the public repo
+decisions/
+design/
+docs/
+research-build/
+research-claude/
+.claude/
+CLAUDE.md
+
+# Misc
+*.log
+tmp/
