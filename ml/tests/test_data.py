@@ -73,3 +73,25 @@ def test_image_clip_dataset_roundtrip(tmp_path) -> None:  # type: ignore[no-unty
     frames, targets = dataset[0]
     assert tuple(frames.shape) == (9, 16, 16)
     assert tuple(targets.shape) == (3, 16, 16)
+
+
+def test_image_clip_dataset_natural_frame_order(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from PIL import Image
+
+    clip = tmp_path / "clip0"
+    clip.mkdir()
+    count = 12  # 0.png .. 11.png — lexicographic order would wrongly put 10/11 before 2
+    for i in range(count):
+        Image.fromarray(np.full((8, 8, 3), i, dtype=np.uint8)).save(clip / f"{i}.png")
+    with (clip / "labels.csv").open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["frame", "visibility", "x", "y"])
+        for i in range(count):
+            writer.writerow([i, 1, 1, 1])
+
+    dataset = ImageClipDataset(str(tmp_path), num_frames=count)
+    frames, _ = dataset[0]
+    # frame k fills channels [3k:3k+3] with value k/255; numeric order => monotonic increase.
+    per_frame = [float(frames[3 * k].mean()) * 255 for k in range(count)]
+    assert per_frame == sorted(per_frame)
+    assert round(per_frame[10]) == 10  # lexicographic sort would put "10.png" at index 2

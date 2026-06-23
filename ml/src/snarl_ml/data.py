@@ -153,7 +153,8 @@ class ImageClipDataset(_FrameClipDataset):
     ) -> None:
         super().__init__(num_frames, sigma)
         for clip_dir in _clip_dirs(root):
-            frame_paths = sorted(clip_dir.glob(image_glob))
+            # Sort numerically: with names like 0.png..10.png, (length, name) puts 2 before 10.
+            frame_paths = sorted(clip_dir.glob(image_glob), key=lambda p: (len(p.stem), p.stem))
             if not frame_paths:
                 continue
             frames = np.stack([_read_image(path) for path in frame_paths])

@@ -74,10 +74,11 @@ video or a public dataset.
 
 ## Bootstrapping while you collect
 You won't have much cricket data at first. Until then:
-- **Pretrain** the tracker on public small-fast-ball trajectory data (tennis/badminton TrackNet
-  sets), then **fine-tune** on your cricket clips. Get the datasets from the TrackNet/WASB project
-  repos (they link the tennis/badminton sets), extract the frames, convert their per-frame label
-  CSVs to our schema with `python -m snarl_ml.prepare <dataset-root>`, then train with
-  `python -m snarl_ml.train --image-dir <dataset-root>`.
+- **Pretrain** the tracker on public small-fast-ball trajectory data, then **fine-tune** on your
+  cricket clips. Easiest path: open `notebooks/pretrain.ipynb` in Colab. For the TrackNetV2
+  shuttlecock dataset, arrange it into clip dirs with
+  `python -m snarl_ml.arrange <tracknet-root> <out>`, then
+  `python -m snarl_ml.train --image-dir <out>`. For other datasets, normalize their label CSVs
+  first with `python -m snarl_ml.prepare <root>`.
 - Use the **synthetic** dataset to develop/validate the pipeline.
 Your own consented cricket footage is what ultimately makes the model good — and it is your moat.
