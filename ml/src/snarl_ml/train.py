@@ -19,7 +19,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, random_split
 
-from .data import ClipDataset, SyntheticBallDataset
+from .data import ClipDataset, ImageClipDataset, SyntheticBallDataset
 from .losses import mean_pixel_error, weighted_heatmap_loss
 from .model import LightTrackNet
 
@@ -106,7 +106,8 @@ def run_training(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the ball-tracking heatmap model.")
-    parser.add_argument("--data-dir", default=None, help="on-disk clips; omit for synthetic")
+    parser.add_argument("--data-dir", default=None, help="npy clips; omit for synthetic")
+    parser.add_argument("--image-dir", default=None, help="image-frame clips (e.g. TrackNet data)")
     parser.add_argument("--frames", type=int, default=3)
     parser.add_argument("--height", type=int, default=64)
     parser.add_argument("--width", type=int, default=64)
@@ -117,14 +118,18 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    dataset: Dataset[tuple[torch.Tensor, torch.Tensor]] = (
-        ClipDataset(args.data_dir, num_frames=args.frames)
-        if args.data_dir is not None
-        else SyntheticBallDataset(
+    dataset: Dataset[tuple[torch.Tensor, torch.Tensor]]
+    if args.image_dir is not None:
+        dataset = ImageClipDataset(args.image_dir, num_frames=args.frames)
+        source = args.image_dir
+    elif args.data_dir is not None:
+        dataset = ClipDataset(args.data_dir, num_frames=args.frames)
+        source = args.data_dir
+    else:
+        dataset = SyntheticBallDataset(
             num_frames=args.frames, height=args.height, width=args.width, seed=args.seed
         )
-    )
-    source = args.data_dir if args.data_dir is not None else "synthetic"
+        source = "synthetic"
     print(f"training on {source} data")
     history = run_training(
         dataset,

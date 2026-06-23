@@ -7,6 +7,7 @@ torch = pytest.importorskip("torch")
 
 from snarl_ml.data import (  # noqa: E402
     ClipDataset,
+    ImageClipDataset,
     SyntheticBallDataset,
     stack_frames,
     targets_from_positions,
@@ -49,6 +50,26 @@ def test_clip_dataset_roundtrip(tmp_path) -> None:  # type: ignore[no-untyped-de
 
     dataset = ClipDataset(str(tmp_path), num_frames=3)
     assert len(dataset) == 2  # windows: 4 - 3 + 1
+    frames, targets = dataset[0]
+    assert tuple(frames.shape) == (9, 16, 16)
+    assert tuple(targets.shape) == (3, 16, 16)
+
+
+def test_image_clip_dataset_roundtrip(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from PIL import Image
+
+    clip = tmp_path / "clip0"
+    clip.mkdir()
+    for frame in range(4):
+        Image.fromarray(np.zeros((16, 16, 3), dtype=np.uint8)).save(clip / f"{frame:03d}.png")
+    with (clip / "labels.csv").open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["frame", "visibility", "x", "y"])
+        for frame in range(4):
+            writer.writerow([frame, 1, frame + 2, frame + 3])
+
+    dataset = ImageClipDataset(str(tmp_path), num_frames=3)
+    assert len(dataset) == 2
     frames, targets = dataset[0]
     assert tuple(frames.shape) == (9, 16, 16)
     assert tuple(targets.shape) == (3, 16, 16)

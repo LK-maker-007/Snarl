@@ -2,14 +2,17 @@
 
 A clip is a sequence of RGB frames with a per-frame ball position. The model consumes
 ``num_frames`` consecutive frames (stacked on the channel axis) and predicts one Gaussian
-heatmap per frame. Two datasets are provided: an on-disk ``ClipDataset`` (the real-data format)
-and a ``SyntheticBallDataset`` that generates a moving ball, so the training pipeline can be
-exercised and tested without real footage.
+heatmap per frame. Datasets:
 
-On-disk clip format (one directory per clip):
-    <clip>/frames.npy   uint8 array of shape (T, H, W, 3)
-    <clip>/labels.csv   header ``frame,visibility,x,y``; one row per frame (x,y ignored when
-                        visibility == 0, i.e. the ball is absent)
+- ``ClipDataset`` — clips stored as ``frames.npy`` + ``labels.csv`` (our own captured data).
+- ``ImageClipDataset`` — clips stored as per-frame image files + ``labels.csv`` (TrackNet-style
+  public datasets, and frames extracted from your own video).
+- ``SyntheticBallDataset`` — a generated moving ball, to exercise the pipeline without footage.
+
+On-disk clip layout (one directory per clip):
+    <clip>/frames.npy   uint8 (T, H, W, 3)         [ClipDataset]
+    <clip>/*.png        one image file per frame    [ImageClipDataset]
+    <clip>/labels.csv   header ``frame,visibility,x,y`` (x,y ignored when visibility == 0)
 """
 
 from __future__ import annotations
@@ -66,16 +69,24 @@ def _read_labels(path: Path) -> list[Point | None]:
     return positions
 
 
+def _read_image(path: Path) -> NDArray[np.uint8]:
+    from PIL import Image
+
+    with Image.open(path) as image:
+        pixels: NDArray[np.uint8] = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    return pixels
+
+
 @dataclass(frozen=True)
 class _Window:
     clip_index: int
     start: int
 
 
-class ClipDataset(Dataset[tuple[Tensor, Tensor]]):
-    """Sliding windows of ``num_frames`` consecutive frames over the on-disk clips."""
+class _FrameClipDataset(Dataset[tuple[Tensor, Tensor]]):
+    """Base for clip datasets: sliding windows of consecutive frames with Gaussian targets."""
 
-    def __init__(self, root: str, num_frames: int = 3, sigma: float = DEFAULT_SIGMA) -> None:
+    def __init__(self, num_frames: int, sigma: float) -> None:
         if num_frames <= 0:
             raise ValueError(f"num_frames must be positive, got {num_frames}")
         self.num_frames = num_frames
@@ -83,19 +94,17 @@ class ClipDataset(Dataset[tuple[Tensor, Tensor]]):
         self._clips: list[tuple[NDArray[np.uint8], list[Point | None]]] = []
         self._windows: list[_Window] = []
 
-        clip_dirs = sorted(path for path in Path(root).iterdir() if path.is_dir())
-        if not clip_dirs:
-            raise ValueError(f"no clip directories found under {root!r}")
-        for clip_index, clip_dir in enumerate(clip_dirs):
-            frames: NDArray[np.uint8] = np.load(clip_dir / "frames.npy")
-            positions = _read_labels(clip_dir / "labels.csv")
-            if len(positions) != len(frames):
-                raise ValueError(f"{clip_dir}: {len(frames)} frames but {len(positions)} labels")
-            self._clips.append((frames, positions))
-            for start in range(len(frames) - num_frames + 1):
-                self._windows.append(_Window(clip_index, start))
+    def _add_clip(self, frames: NDArray[np.uint8], positions: list[Point | None]) -> None:
+        if len(positions) != len(frames):
+            raise ValueError(f"{len(frames)} frames but {len(positions)} labels")
+        clip_index = len(self._clips)
+        self._clips.append((frames, positions))
+        for start in range(len(frames) - self.num_frames + 1):
+            self._windows.append(_Window(clip_index, start))
+
+    def _finalize(self, root: str) -> None:
         if not self._windows:
-            raise ValueError(f"no clips with at least {num_frames} frames under {root!r}")
+            raise ValueError(f"no clips with at least {self.num_frames} frames under {root!r}")
 
     def __len__(self) -> int:
         return len(self._windows)
@@ -108,6 +117,48 @@ class ClipDataset(Dataset[tuple[Tensor, Tensor]]):
         inputs = stack_frames(frames[window_slice])
         targets = targets_from_positions(positions[window_slice], height, width, self.sigma)
         return torch.from_numpy(inputs), torch.from_numpy(targets)
+
+
+def _clip_dirs(root: str) -> list[Path]:
+    clip_dirs = sorted(path for path in Path(root).iterdir() if path.is_dir())
+    if not clip_dirs:
+        raise ValueError(f"no clip directories found under {root!r}")
+    return clip_dirs
+
+
+class ClipDataset(_FrameClipDataset):
+    """Clips stored as ``<clip>/frames.npy`` (uint8 T,H,W,3) + ``<clip>/labels.csv``."""
+
+    def __init__(self, root: str, num_frames: int = 3, sigma: float = DEFAULT_SIGMA) -> None:
+        super().__init__(num_frames, sigma)
+        for clip_dir in _clip_dirs(root):
+            frames: NDArray[np.uint8] = np.load(clip_dir / "frames.npy")
+            self._add_clip(frames, _read_labels(clip_dir / "labels.csv"))
+        self._finalize(root)
+
+
+class ImageClipDataset(_FrameClipDataset):
+    """Clips stored as per-frame image files + ``labels.csv`` (TrackNet-style data, or frames
+    extracted from your own video). Each subdirectory of ``root`` is one clip; frames are the
+    images matching ``image_glob`` sorted by name, and must share a common size. Requires Pillow.
+    """
+
+    def __init__(
+        self,
+        root: str,
+        num_frames: int = 3,
+        sigma: float = DEFAULT_SIGMA,
+        labels_name: str = "labels.csv",
+        image_glob: str = "*.png",
+    ) -> None:
+        super().__init__(num_frames, sigma)
+        for clip_dir in _clip_dirs(root):
+            frame_paths = sorted(clip_dir.glob(image_glob))
+            if not frame_paths:
+                continue
+            frames = np.stack([_read_image(path) for path in frame_paths])
+            self._add_clip(frames, _read_labels(clip_dir / labels_name))
+        self._finalize(root)
 
 
 class SyntheticBallDataset(Dataset[tuple[Tensor, Tensor]]):

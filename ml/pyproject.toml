@@ -10,7 +10,7 @@ name = "snarl-ml"
 version = "0.0.1"
 description = "Model training and PyTorch->TFLite conversion for the cricket app. Offline only; not shipped."
 requires-python = ">=3.12"
-dependencies = ["numpy>=2"]
+dependencies = ["numpy>=2", "pillow>=10"]
 
 [project.optional-dependencies]
 # Conversion/inference deps are heavy; install when training/converting (e.g. on Colab/Kaggle).
@@ -40,7 +40,7 @@ files = ["src"]
 
 # Heavy third-party libs without local stubs are checked where installed (CI/Colab), Any here.
 [[tool.mypy.overrides]]
-module = ["torch.*", "litert_torch.*", "ai_edge_litert.*", "tensorflow.*"]
+module = ["torch.*", "litert_torch.*", "ai_edge_litert.*", "tensorflow.*", "PIL.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
