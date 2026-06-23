@@ -42,3 +42,6 @@ Parity and latency numbers are produced by that run on real input — they are n
 advance. On-device latency is measured later on the Android phone, not by this host-CPU
 benchmark.
 
+Or run it in Colab: open `notebooks/milestone1.ipynb` (it clones the repo, installs the convert
+deps, and runs the pipeline).
+
