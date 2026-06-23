@@ -17,3 +17,28 @@ ruff check . && mypy .
 ```
 
 Standards: permissively licensed code and data only; train only on consented footage.
+
+## Milestone 1 — convert, parity, latency
+
+`src/snarl_ml/`: a lightweight TrackNet-style heatmap tracker (`model.py`), Gaussian target
+encode/decode (`heatmap.py`), PyTorch->LiteRT conversion (`convert.py`), a parity gate
+(`parity.py`), and a host-CPU latency benchmark (`latency.py`). `milestone1.py` runs them
+end-to-end.
+
+Lint, type-check, and unit tests (no heavy deps):
+```
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e '.[dev]'
+ruff check src tests && mypy && pytest
+```
+
+Full convert -> parity -> latency (needs torch + litert-torch; run on Colab/Kaggle or a machine
+with them):
+```
+pip install -e '.[convert]'
+python -m snarl_ml.milestone1
+```
+Parity and latency numbers are produced by that run on real input — they are not asserted in
+advance. On-device latency is measured later on the Android phone, not by this host-CPU
+benchmark.
+
