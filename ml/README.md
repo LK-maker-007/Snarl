@@ -45,3 +45,7 @@ benchmark.
 Or run it in Colab: open `notebooks/milestone1.ipynb` (it clones the repo, installs the convert
 deps, and runs the pipeline).
 
+Measured (efficient model, 3 frames @ 160x256, host CPU, float32): ~0.05 GMACs, ~0.017 M params,
+p50 ~2.7 ms, and lossless conversion (decoded-peak parity max_px 0.00 vs PyTorch). These are
+size/speed/fidelity numbers; model accuracy is validated separately once trained on real data.
+

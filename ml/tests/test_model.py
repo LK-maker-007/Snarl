@@ -21,6 +21,12 @@ def test_rejects_wrong_channel_count() -> None:
         model(torch.zeros(1, 6, 64, 64))
 
 
+def test_rejects_non_multiple_of_eight() -> None:
+    model = LightTrackNet(num_frames=3)
+    with pytest.raises(ValueError):
+        model(torch.zeros(1, 9, 60, 64))
+
+
 def test_invalid_construction_raises() -> None:
     with pytest.raises(ValueError):
         LightTrackNet(num_frames=0)
