@@ -4,7 +4,8 @@
 # toolchain is absent. Install as a git hook:
 #   ln -sf ../../scripts/precommit.sh .git/hooks/pre-commit
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# Resolve the repo root robustly whether run directly or as a symlinked git hook ($0 = .git/hooks/..).
+cd "$(git rev-parse --show-toplevel)"
 
 fail=0
 
