@@ -32,6 +32,21 @@ def test_arrange_tracknetv2(tmp_path: Path) -> None:
     assert rows[1]["x"] == "2"  # frame 1: x = i + 1
 
 
+def test_arrange_accepts_a_single_match_dir(tmp_path: Path) -> None:
+    match = tmp_path / "match1"
+    rally = match / "frame" / "1_00_00"
+    rally.mkdir(parents=True)
+    (match / "ball_trajectory").mkdir(parents=True)
+    (rally / "0.png").write_bytes(b"")
+    with (match / "ball_trajectory" / "1_00_00_ball.csv").open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["Frame", "Visibility", "X", "Y"])
+        writer.writerow([0, 1, 1, 2])
+
+    # Pointing straight at the match folder (not its parent) must still work.
+    assert arrange_tracknetv2(str(match), str(tmp_path / "out"), symlink=False) == 1
+
+
 def test_arrange_rejects_missing_dataset(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         arrange_tracknetv2(str(tmp_path), str(tmp_path / "out"))

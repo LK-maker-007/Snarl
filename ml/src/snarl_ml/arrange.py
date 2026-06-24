@@ -37,9 +37,8 @@ def arrange_tracknetv2(
     src, dst = Path(src_root), Path(dst_root)
     frame_matches: list[Path] = []
     video_matches: list[Path] = []
-    for path in sorted(src.rglob("*")):
-        if not path.is_dir():
-            continue
+    candidates = [src, *(path for path in sorted(src.rglob("*")) if path.is_dir())]
+    for path in candidates:
         if (path / "frame").is_dir() and (path / "ball_trajectory").is_dir():
             frame_matches.append(path)
         elif (path / "video").is_dir() and (path / "csv").is_dir():
