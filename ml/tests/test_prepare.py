@@ -25,6 +25,22 @@ def test_convert_tracknet_csv(tmp_path: Path) -> None:
     assert rows[0]["x"] == "0"  # absent -> zeroed
 
 
+def test_convert_scales_coordinates(tmp_path: Path) -> None:
+    src = tmp_path / "Label.csv"
+    with src.open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["Frame", "Visibility", "X", "Y"])
+        writer.writerow(["0", "1", "100", "50"])
+        writer.writerow(["1", "0", "0", "0"])  # absent stays zeroed regardless of scale
+
+    dst = tmp_path / "labels.csv"
+    convert_tracknet_csv(src, dst, scale=0.5)
+    with dst.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]["x"] == "50" and rows[0]["y"] == "25"  # halved
+    assert rows[1]["x"] == "0"
+
+
 def test_missing_columns_raise(tmp_path: Path) -> None:
     src = tmp_path / "bad.csv"
     src.write_text("frame,foo\n0,1\n")

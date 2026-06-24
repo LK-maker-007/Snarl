@@ -29,10 +29,12 @@ def arrange_tracknetv2(
     *,
     symlink: bool = True,
     fps: float | None = None,
+    scale: float | None = None,
 ) -> int:
     """Build clip dirs under ``dst_root`` from a TrackNetV2 dataset; return the clip count.
 
-    ``fps`` only applies to the video layout (resample on extraction; ``None`` keeps native fps).
+    ``fps`` and ``scale`` only apply to the video layout: ``fps`` resamples on extraction (``None``
+    keeps native fps); ``scale`` downscales frames and the matching labels (``None`` keeps size).
     """
     src, dst = Path(src_root), Path(dst_root)
     frame_matches: list[Path] = []
@@ -55,7 +57,7 @@ def arrange_tracknetv2(
     for match_dir in frame_matches:
         clips += _arrange_frame_match(match_dir, dst, symlink=symlink)
     for match_dir in video_matches:
-        clips += _arrange_video_match(match_dir, dst, fps=fps)
+        clips += _arrange_video_match(match_dir, dst, fps=fps, scale=scale)
 
     if clips == 0:
         raise ValueError(f"no rallies with matching labels found under {src_root!r}")
@@ -85,17 +87,20 @@ def _arrange_frame_match(match_dir: Path, dst: Path, *, symlink: bool) -> int:
     return clips
 
 
-def _arrange_video_match(match_dir: Path, dst: Path, *, fps: float | None) -> int:
+def _arrange_video_match(
+    match_dir: Path, dst: Path, *, fps: float | None, scale: float | None
+) -> int:
     clips = 0
     video_dir = match_dir / "video"
+    label_scale = scale if scale is not None else 1.0
     for csv_path in sorted((match_dir / "csv").glob(f"*{_BALL_CSV_SUFFIX}")):
         rally = csv_path.name[: -len(_BALL_CSV_SUFFIX)]
         video_path = video_dir / f"{rally}.mp4"
         if not video_path.exists():
             continue
         clip_dir = dst / f"{match_dir.name}__{rally}"
-        frame_count = extract_frames(str(video_path), str(clip_dir), fps=fps)
-        label_count = convert_tracknet_csv(csv_path, clip_dir / "labels.csv")
+        frame_count = extract_frames(str(video_path), str(clip_dir), fps=fps, scale=scale)
+        label_count = convert_tracknet_csv(csv_path, clip_dir / "labels.csv", scale=label_scale)
         _align_clip(clip_dir, frame_count, label_count)
         clips += 1
     return clips
@@ -124,8 +129,11 @@ def main() -> None:
     parser.add_argument("dst", help="output root of clip directories for ImageClipDataset")
     parser.add_argument("--copy", action="store_true", help="copy frames instead of symlinking")
     parser.add_argument("--fps", type=float, default=None, help="resample fps for the video layout")
+    parser.add_argument("--scale", type=float, default=None, help="downscale factor (e.g. 0.5)")
     args = parser.parse_args()
-    clips = arrange_tracknetv2(args.src, args.dst, symlink=not args.copy, fps=args.fps)
+    clips = arrange_tracknetv2(
+        args.src, args.dst, symlink=not args.copy, fps=args.fps, scale=args.scale
+    )
     print(f"arranged {clips} clips into {args.dst}")
 
 

@@ -17,8 +17,11 @@ from pathlib import Path
 _OUR_HEADER = ["frame", "visibility", "x", "y"]
 
 
-def convert_tracknet_csv(src: Path, dst: Path) -> int:
-    """Convert one TrackNet-style label CSV to our schema; return the number of rows written."""
+def convert_tracknet_csv(src: Path, dst: Path, *, scale: float = 1.0) -> int:
+    """Convert one TrackNet-style label CSV to our schema; return the number of rows written.
+
+    ``scale`` multiplies the ball coordinates to match downscaled frames (e.g. 0.5 for half size).
+    """
     with src.open(newline="") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:
@@ -34,8 +37,8 @@ def convert_tracknet_csv(src: Path, dst: Path) -> int:
         writer.writerow(_OUR_HEADER)
         for index, row in enumerate(rows):
             visible = int(float(row[columns["visibility"]])) > 0
-            x = int(float(row[columns["x"]])) if visible else 0
-            y = int(float(row[columns["y"]])) if visible else 0
+            x = int(float(row[columns["x"]]) * scale) if visible else 0
+            y = int(float(row[columns["y"]]) * scale) if visible else 0
             writer.writerow([index, int(visible), x, y])
     return len(rows)
 
