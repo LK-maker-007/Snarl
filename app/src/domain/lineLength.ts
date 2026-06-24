@@ -36,6 +36,40 @@ export const LINE_BOUNDS = {
   legStump: -0.12,
 } as const;
 
+export const LENGTH_ZONES: readonly LengthZone[] = [
+  'yorker',
+  'full',
+  'good',
+  'backOfLength',
+  'short',
+];
+
+export const LINE_ZONES: readonly LineZone[] = [
+  'wideOutsideOff',
+  'outsideOff',
+  'offStump',
+  'middle',
+  'legStump',
+  'downLeg',
+];
+
+export const LENGTH_ZONE_LABELS: Record<LengthZone, string> = {
+  yorker: 'Yorker',
+  full: 'Full',
+  good: 'Good length',
+  backOfLength: 'Back of a length',
+  short: 'Short',
+};
+
+export const LINE_ZONE_LABELS: Record<LineZone, string> = {
+  wideOutsideOff: 'Wide outside off',
+  outsideOff: 'Outside off',
+  offStump: 'Off stump',
+  middle: 'Middle',
+  legStump: 'Leg stump',
+  downLeg: 'Down leg',
+};
+
 export function classifyDelivery(bounce: Point, handedness: Handedness = 'right'): DeliveryZones {
   return {
     line: classifyLine(bounce.x, handedness),

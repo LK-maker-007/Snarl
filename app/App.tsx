@@ -8,10 +8,22 @@ import {
   View,
 } from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
+import {Delivery} from './src/domain/pitchMap';
 import {CalibrationScreen} from './src/screens/CalibrationScreen';
 import {CaptureScreen} from './src/screens/CaptureScreen';
+import {PitchMapScreen} from './src/screens/PitchMapScreen';
 
-type Screen = 'home' | 'capture' | 'calibration';
+type Screen = 'home' | 'capture' | 'calibration' | 'pitchmap';
+
+// Placeholder until the tracker feeds real bounce points; lets the map be seen and laid out.
+const SAMPLE_DELIVERIES: readonly Delivery[] = [
+  {id: '1', bounce: {x: 0.02, y: 4.5}, handedness: 'right'},
+  {id: '2', bounce: {x: 0.16, y: 5.3}, handedness: 'right'},
+  {id: '3', bounce: {x: -0.04, y: 2.2}, handedness: 'right'},
+  {id: '4', bounce: {x: 0.27, y: 7.4}, handedness: 'right'},
+  {id: '5', bounce: {x: 0.05, y: 0.6}, handedness: 'right'},
+  {id: '6', bounce: {x: -0.22, y: 9.6}, handedness: 'right'},
+];
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -40,11 +52,27 @@ function AppContent() {
             onPress={() => setScreen('home')}>
             <Text style={styles.backText}>{'< Back'}</Text>
           </Pressable>
-          {screen === 'capture' ? <CaptureScreen /> : <CalibrationScreen />}
+          <ActiveScreen screen={screen} />
         </View>
       )}
     </View>
   );
+}
+
+function ActiveScreen({screen}: {screen: Exclude<Screen, 'home'>}) {
+  switch (screen) {
+    case 'capture':
+      return <CaptureScreen />;
+    case 'calibration':
+      return <CalibrationScreen />;
+    case 'pitchmap':
+      return (
+        <PitchMapScreen
+          deliveries={SAMPLE_DELIVERIES}
+          note="Sample deliveries — real bounces appear once tracking is wired."
+        />
+      );
+  }
 }
 
 function HomeScreen({onSelect}: {onSelect: (screen: Screen) => void}) {
@@ -62,6 +90,12 @@ function HomeScreen({onSelect}: {onSelect: (screen: Screen) => void}) {
         style={styles.tile}
         onPress={() => onSelect('calibration')}>
         <Text style={styles.tileText}>Calibrate the pitch</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        style={styles.tile}
+        onPress={() => onSelect('pitchmap')}>
+        <Text style={styles.tileText}>Pitch map</Text>
       </Pressable>
     </View>
   );
