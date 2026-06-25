@@ -63,6 +63,7 @@ def run_training(
     seed: int = 0,
     checkpoint_path: str | None = None,
     init_from: str | None = None,
+    num_workers: int = 0,
 ) -> list[EpochStats]:
     """Train the model and return per-epoch stats, saving the best checkpoint if a path is given."""
     torch.manual_seed(seed)
@@ -73,11 +74,12 @@ def run_training(
     train_set, val_set = random_split(
         dataset, [total - val_len, val_len], generator=torch.Generator().manual_seed(seed)
     )
+    pin = device.type == "cuda"
     train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]] = DataLoader(
-        train_set, batch_size=batch_size, shuffle=True
+        train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin
     )
     val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]] = DataLoader(
-        val_set, batch_size=batch_size
+        val_set, batch_size=batch_size, num_workers=num_workers, pin_memory=pin
     )
 
     model = LightTrackNet(num_frames=num_frames).to(device)
@@ -122,6 +124,7 @@ def main() -> None:
     parser.add_argument("--out", default="checkpoint.pt")
     parser.add_argument("--init-from", default=None, help="load weights from this checkpoint first")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--num-workers", type=int, default=0, help="DataLoader worker processes")
     args = parser.parse_args()
 
     dataset: Dataset[tuple[torch.Tensor, torch.Tensor]]
@@ -148,6 +151,7 @@ def main() -> None:
         seed=args.seed,
         checkpoint_path=args.out,
         init_from=args.init_from,
+        num_workers=args.num_workers,
     )
     for stats in history:
         print(
