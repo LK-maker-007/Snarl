@@ -11,23 +11,29 @@ export interface ModelRunner {
   run(input: Float32Array): Promise<Float32Array>;
 }
 
+// Random access to a clip's decoded RGBA frames. An accessor (rather than a materialized array)
+// lets the caller decode lazily and bound memory — a whole clip of decoded frames is large.
+export interface FrameAccessor {
+  readonly count: number;
+  at(index: number): Uint8Array; // decoded RGBA, length width*height*4
+}
+
 // Slide a 3-frame window across the clip, predict per-window heatmaps, and decode the centre
 // frame's ball position — the centre frame is the one the model was trained and evaluated to
-// localize. The first and last frames are never a window centre, so they stay null. `frames` are
-// decoded RGBA byte buffers, one per clip frame.
+// localize. The first and last frames are never a window centre, so they stay null.
 export async function trackClip(
   runner: ModelRunner,
-  frames: readonly Uint8Array[],
+  frames: FrameAccessor,
   width: number,
   height: number,
   threshold: number = 0.5,
 ): Promise<(Point | null)[]> {
   const plane = width * height;
-  const track: (Point | null)[] = new Array<Point | null>(frames.length).fill(null);
+  const track: (Point | null)[] = new Array<Point | null>(frames.count).fill(null);
 
-  for (let start = 0; start + FRAMES_PER_WINDOW <= frames.length; start++) {
-    const input = buildInputTensor(frames.slice(start, start + FRAMES_PER_WINDOW), width, height);
-    const output = await runner.run(input);
+  for (let start = 0; start + FRAMES_PER_WINDOW <= frames.count; start++) {
+    const window = [frames.at(start), frames.at(start + 1), frames.at(start + 2)];
+    const output = await runner.run(buildInputTensor(window, width, height));
     if (output.length !== FRAMES_PER_WINDOW * plane) {
       throw new Error(
         `model output length ${output.length} does not match ${FRAMES_PER_WINDOW}x${plane}`,
