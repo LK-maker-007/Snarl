@@ -87,6 +87,11 @@ def run_training(
         model.load_state_dict(torch.load(init_from, map_location=device))
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    total_train = len(cast(Sized, train_set))
+    total_batches = max(1, (total_train + batch_size - 1) // batch_size)
+    n_total = len(cast(Sized, dataset))
+    print(f"dataset: {n_total} windows | train {total_train} | {total_batches} batches/epoch")
+
     history: list[EpochStats] = []
     best_error = float("inf")
     for epoch in range(1, epochs + 1):
@@ -99,8 +104,11 @@ def run_training(
             loss = weighted_heatmap_loss(model(frames), target)
             loss.backward()
             optimizer.step()
-            running += float(loss)
+            running += loss.detach().item()
             batches += 1
+            if batches % 50 == 0:
+                avg = running / batches
+                print(f"  epoch {epoch} batch {batches}/{total_batches} loss={avg:.4f}", flush=True)
         train_loss = running / batches if batches else 0.0
         val_loss, val_pixel_error = _evaluate(model, val_loader, device)
         history.append(EpochStats(epoch, train_loss, val_loss, val_pixel_error))
