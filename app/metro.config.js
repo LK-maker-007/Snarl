@@ -6,6 +6,13 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
  *
  * @type {import('@react-native/metro-config').MetroConfig}
  */
-const config = {};
+const defaultConfig = getDefaultConfig(__dirname);
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+const config = {
+  resolver: {
+    // Bundle .tflite model files as assets so they can be loaded with require().
+    assetExts: [...defaultConfig.resolver.assetExts, 'tflite'],
+  },
+};
+
+module.exports = mergeConfig(defaultConfig, config);

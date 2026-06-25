@@ -9,11 +9,13 @@ import {
 } from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Delivery} from './src/domain/pitchMap';
+import {demoSource} from './src/ml/demoSource';
 import {CalibrationScreen} from './src/screens/CalibrationScreen';
 import {CaptureScreen} from './src/screens/CaptureScreen';
 import {PitchMapScreen} from './src/screens/PitchMapScreen';
+import {TrackerScreen} from './src/screens/TrackerScreen';
 
-type Screen = 'home' | 'capture' | 'calibration' | 'pitchmap';
+type Screen = 'home' | 'capture' | 'calibration' | 'pitchmap' | 'tracker';
 
 // Placeholder until the tracker feeds real bounce points; lets the map be seen and laid out.
 const SAMPLE_DELIVERIES: readonly Delivery[] = [
@@ -72,6 +74,8 @@ function ActiveScreen({screen}: {screen: Exclude<Screen, 'home'>}) {
           note="Sample deliveries — real bounces appear once tracking is wired."
         />
       );
+    case 'tracker':
+      return <TrackerScreen source={demoSource} />;
   }
 }
 
@@ -97,6 +101,14 @@ function HomeScreen({onSelect}: {onSelect: (screen: Screen) => void}) {
         onPress={() => onSelect('pitchmap')}>
         <Text style={styles.tileText}>Pitch map</Text>
       </Pressable>
+      {demoSource.frames.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          style={styles.tile}
+          onPress={() => onSelect('tracker')}>
+          <Text style={styles.tileText}>Ball tracker (demo)</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
