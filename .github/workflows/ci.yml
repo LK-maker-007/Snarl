@@ -17,7 +17,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -e '.[dev]'
+      # Install the CPU-only torch build first so the editable install below resolves the heavy
+      # convert deps (torch/litert) without pulling the multi-GB CUDA wheel. The package genuinely
+      # depends on torch, so CI installs it and type-checks/tests the model, export, parity and
+      # verify paths for real rather than skipping them.
+      - run: pip install --upgrade pip
+      - run: pip install 'torch>=2.4' --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e '.[dev,convert]'
       - run: ruff check src tests
       - run: mypy
       - run: pytest -q

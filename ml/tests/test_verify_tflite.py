@@ -7,10 +7,12 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from snarl_ml import verify_tflite as verify_module
-from snarl_ml.data import ImageClipDataset
-from snarl_ml.evaluate import score_detections
-from snarl_ml.heatmap import gaussian_heatmap
+pytest.importorskip("torch")
+
+from snarl_ml import verify_tflite as verify_module  # noqa: E402
+from snarl_ml.data import ImageClipDataset  # noqa: E402
+from snarl_ml.evaluate import score_detections  # noqa: E402
+from snarl_ml.heatmap import gaussian_heatmap  # noqa: E402
 
 
 def test_score_detections_counts_and_errors() -> None:

@@ -1,10 +1,11 @@
 from pathlib import Path
 
 import pytest
-import torch
 
-from snarl_ml.export import load_checkpoint
-from snarl_ml.model import LightTrackNet
+torch = pytest.importorskip("torch")
+
+from snarl_ml.export import load_checkpoint  # noqa: E402
+from snarl_ml.model import LightTrackNet  # noqa: E402
 
 
 def test_load_checkpoint_roundtrip(tmp_path: Path) -> None:

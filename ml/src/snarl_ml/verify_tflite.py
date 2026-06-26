@@ -15,7 +15,7 @@ import argparse
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 from .data import ImageClipDataset
 from .evaluate import Accuracy, score_detections
@@ -39,15 +39,17 @@ def verify_tflite(
     output_detail = interpreter.get_output_details()[0]
     input_index = input_detail["index"]
     input_dtype = input_detail["dtype"]
+    # batch_size=1 yields one (1, 9, H, W) window per step, matching the model's fixed input shape
+    # and the centre-frame scoring; it also gives a typed, len-free iteration like evaluate().
+    loader: DataLoader[tuple[torch.Tensor, torch.Tensor]] = DataLoader(dataset, batch_size=1)
 
     pairs: list[tuple[Point | None, Point | None]] = []
-    for index in range(len(dataset)):  # type: ignore[arg-type]
-        frames, targets = dataset[index]
-        batch = frames.numpy()[np.newaxis].astype(input_dtype)
+    for frames, targets in loader:
+        batch = frames.numpy().astype(input_dtype)
         interpreter.set_tensor(input_index, batch)
         interpreter.invoke()
         prediction = np.asarray(interpreter.get_tensor(output_detail["index"]), dtype=np.float32)[0]
-        truth = targets.numpy()
+        truth = targets.numpy()[0]
         centre = prediction.shape[0] // 2
         predicted, _ = decode_heatmap(prediction[centre], threshold=threshold)
         expected, _ = decode_heatmap(truth[centre], threshold=0.5)
