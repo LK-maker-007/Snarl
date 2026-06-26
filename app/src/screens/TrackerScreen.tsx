@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import {Point} from '../domain/cricket';
+import {rectifyTrack} from '../domain/trajectory';
 import {log} from '../infra/log';
 import {decodeJpegBase64} from '../ml/decodeJpeg';
 import {createCachedAccessor} from '../ml/frameCache';
@@ -57,8 +58,11 @@ export function TrackerScreen({source}: {source: TrackerSource}) {
         return frame.data;
       });
       const result = await trackClip(runner, accessor, source.width, source.height);
+      // Clean the raw per-frame track: drop spikes onto distractors and fill short gaps so the
+      // overlaid dot follows a smooth path instead of blinking off or jumping away.
+      const refined = rectifyTrack(result);
       if (!cancelled) {
-        setTrack(result);
+        setTrack(refined);
         setStatus('playing');
       }
     };
