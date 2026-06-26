@@ -21,18 +21,19 @@ from .data import ImageClipDataset
 from .evaluate import Accuracy, score_detections
 from .heatmap import Point, decode_heatmap
 from .runtime import make_interpreter
+from .trajectory import rectify_track
 
 
-def verify_tflite(
+def run_track(
     model_path: str,
     dataset: Dataset[tuple[torch.Tensor, torch.Tensor]],
     *,
-    tolerance: float = 4.0,
     threshold: float = 0.5,
-) -> Accuracy:
-    """Score the .tflite at ``model_path`` over the centre frame of every window in ``dataset``.
+) -> tuple[list[Point | None], list[Point | None]]:
+    """Run the .tflite over the dataset and return the (predicted, ground-truth) point sequences.
 
-    ``threshold`` is the on-device ball-present confidence; ``tolerance`` is the hit radius in px.
+    One entry per window, in dataset order, decoded from the centre frame. ``threshold`` is the
+    on-device ball-present confidence.
     """
     interpreter = make_interpreter(model_path)
     input_detail = interpreter.get_input_details()[0]
@@ -43,7 +44,8 @@ def verify_tflite(
     # and the centre-frame scoring; it also gives a typed, len-free iteration like evaluate().
     loader: DataLoader[tuple[torch.Tensor, torch.Tensor]] = DataLoader(dataset, batch_size=1)
 
-    pairs: list[tuple[Point | None, Point | None]] = []
+    predicted: list[Point | None] = []
+    expected: list[Point | None] = []
     for frames, targets in loader:
         batch = frames.numpy().astype(input_dtype)
         interpreter.set_tensor(input_index, batch)
@@ -51,11 +53,35 @@ def verify_tflite(
         prediction = np.asarray(interpreter.get_tensor(output_detail["index"]), dtype=np.float32)[0]
         truth = targets.numpy()[0]
         centre = prediction.shape[0] // 2
-        predicted, _ = decode_heatmap(prediction[centre], threshold=threshold)
-        expected, _ = decode_heatmap(truth[centre], threshold=0.5)
-        pairs.append((predicted, expected))
+        point, _ = decode_heatmap(prediction[centre], threshold=threshold)
+        target, _ = decode_heatmap(truth[centre], threshold=0.5)
+        predicted.append(point)
+        expected.append(target)
+    return predicted, expected
 
-    return score_detections(pairs, tolerance=tolerance)
+
+def verify_tflite(
+    model_path: str,
+    dataset: Dataset[tuple[torch.Tensor, torch.Tensor]],
+    *,
+    tolerance: float = 4.0,
+    threshold: float = 0.5,
+    rectify: bool = False,
+    rectify_window: int = 7,
+    rectify_tolerance: float = 12.0,
+) -> Accuracy:
+    """Score the .tflite at ``model_path`` over the centre frame of every window in ``dataset``.
+
+    ``threshold`` is the on-device ball-present confidence; ``tolerance`` is the hit radius in px.
+    When ``rectify`` is set, the predicted track is passed through trajectory rectification before
+    scoring; this treats the dataset as one ordered track, so use a single clip per call.
+    """
+    predicted, expected = run_track(model_path, dataset, threshold=threshold)
+    if rectify:
+        predicted = rectify_track(
+            predicted, window=rectify_window, curve_tolerance=rectify_tolerance
+        )
+    return score_detections(zip(predicted, expected, strict=True), tolerance=tolerance)
 
 
 def main() -> None:
@@ -68,6 +94,11 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=3)
     parser.add_argument("--tolerance", type=float, default=4.0, help="hit radius in px")
     parser.add_argument("--threshold", type=float, default=0.5, help="ball-present confidence")
+    parser.add_argument("--rectify", action="store_true", help="apply trajectory rectification")
+    parser.add_argument("--rectify-window", type=int, default=7, help="rectification window frames")
+    parser.add_argument(
+        "--rectify-tolerance", type=float, default=12.0, help="px from curve to keep a detection"
+    )
     args = parser.parse_args()
 
     dataset = ImageClipDataset(args.image_dir, num_frames=args.frames, image_glob=args.image_glob)
@@ -76,10 +107,14 @@ def main() -> None:
         dataset,
         tolerance=args.tolerance,
         threshold=args.threshold,
+        rectify=args.rectify,
+        rectify_window=args.rectify_window,
+        rectify_tolerance=args.rectify_tolerance,
     )
 
+    rectified = " (rectified)" if args.rectify else ""
     print(
-        f"verified {args.model} on {args.image_dir} "
+        f"verified{rectified} {args.model} on {args.image_dir} "
         f"({accuracy.frames} frames, tolerance {args.tolerance:.0f} px)"
     )
     print(
