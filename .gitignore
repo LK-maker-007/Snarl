@@ -46,6 +46,7 @@ secrets/
 # Internal docs and local Claude config — kept local, NOT published to the public repo
 decisions/
 design/
+progress/
 docs/
 research-build/
 research-claude/
