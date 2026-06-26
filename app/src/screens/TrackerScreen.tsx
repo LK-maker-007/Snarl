@@ -25,6 +25,11 @@ type Status = 'analyzing' | 'playing' | 'error';
 
 const DOT_RADIUS = 7;
 
+// Playback rate for the frame sequence. Kept below the capture fps because each frame is a base64
+// data URI that the image view must decode on every swap; at full capture speed the decode cannot
+// keep up and frames blank out. This rate is for viewing only and does not affect tracking.
+const PLAYBACK_FPS = 12;
+
 export function TrackerScreen({source}: {source: TrackerSource}) {
   const [status, setStatus] = useState<Status>('analyzing');
   const [track, setTrack] = useState<readonly (Point | null)[]>([]);
@@ -75,12 +80,12 @@ export function TrackerScreen({source}: {source: TrackerSource}) {
     if (status !== 'playing' || source.frames.length === 0) {
       return undefined;
     }
-    const period = Math.max(1, Math.round(1000 / source.fps));
+    const period = Math.max(1, Math.round(1000 / PLAYBACK_FPS));
     const interval = setInterval(() => {
       setFrameIndex(current => (current + 1) % source.frames.length);
     }, period);
     return () => clearInterval(interval);
-  }, [status, source.frames.length, source.fps]);
+  }, [status, source.frames.length]);
 
   const onLayout = (event: LayoutChangeEvent) => {
     setLayoutWidth(event.nativeEvent.layout.width);
@@ -104,6 +109,7 @@ export function TrackerScreen({source}: {source: TrackerSource}) {
           <Image
             style={styles.frame}
             resizeMode="contain"
+            fadeDuration={0}
             source={{uri: `data:image/jpeg;base64,${currentFrame}`}}
           />
         )}

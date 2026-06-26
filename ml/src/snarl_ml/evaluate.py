@@ -15,6 +15,7 @@ stump calibration and is reported separately once that exists. Requires torch.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import numpy as np
@@ -23,7 +24,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from .data import ClipDataset, ImageClipDataset, SyntheticBallDataset
-from .heatmap import decode_heatmap
+from .heatmap import Point, decode_heatmap
 from .model import LightTrackNet
 
 _GROUND_TRUTH_THRESHOLD = 0.5
@@ -61,6 +62,52 @@ class Accuracy:
         return (self.true_positives + self.true_negatives) / self.frames if self.frames else 0.0
 
 
+def score_detections(
+    pairs: Iterable[tuple[Point | None, Point | None]],
+    *,
+    tolerance: float = 4.0,
+) -> Accuracy:
+    """Tally detection/localization metrics from ``(predicted, expected)`` peak pairs.
+
+    Each pair is the decoded predicted peak and the ground-truth peak for one frame; either side
+    is ``None`` when the ball is absent or not found. A located prediction within ``tolerance`` px
+    of a present ball is a true positive. Shared by the checkpoint and on-device .tflite scorers so
+    both report identical metrics.
+    """
+    if tolerance <= 0.0:
+        raise ValueError(f"tolerance must be positive, got {tolerance}")
+
+    true_positives = false_positives = false_negatives = true_negatives = 0
+    located_errors: list[float] = []
+    for predicted, expected in pairs:
+        if expected is None:
+            if predicted is None:
+                true_negatives += 1
+            else:
+                false_positives += 1
+            continue
+        if predicted is None:
+            false_negatives += 1
+            continue
+        distance = float(np.hypot(predicted[0] - expected[0], predicted[1] - expected[1]))
+        located_errors.append(distance)
+        if distance <= tolerance:
+            true_positives += 1
+        else:
+            false_positives += 1
+
+    errors = np.asarray(located_errors, dtype=np.float64)
+    return Accuracy(
+        frames=true_positives + false_positives + false_negatives + true_negatives,
+        true_positives=true_positives,
+        false_positives=false_positives,
+        false_negatives=false_negatives,
+        true_negatives=true_negatives,
+        median_pixel_error=float(np.median(errors)) if errors.size else 0.0,
+        p90_pixel_error=float(np.percentile(errors, 90)) if errors.size else 0.0,
+    )
+
+
 def evaluate(
     model: nn.Module,
     dataset: Dataset[tuple[torch.Tensor, torch.Tensor]],
@@ -75,16 +122,13 @@ def evaluate(
     ``tolerance`` px; ``threshold`` is the confidence below which a prediction is "no ball".
     Scoring only the centre frame counts each clip frame once despite the sliding windows.
     """
-    if tolerance <= 0.0:
-        raise ValueError(f"tolerance must be positive, got {tolerance}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device).eval()
     loader: DataLoader[tuple[torch.Tensor, torch.Tensor]] = DataLoader(
         dataset, batch_size=batch_size
     )
 
-    true_positives = false_positives = false_negatives = true_negatives = 0
-    located_errors: list[float] = []
+    pairs: list[tuple[Point | None, Point | None]] = []
     with torch.no_grad():
         for frames, targets in loader:
             predictions = model(frames.to(device)).cpu().numpy()
@@ -95,32 +139,9 @@ def evaluate(
             ):
                 predicted, _ = decode_heatmap(predicted_map, threshold=threshold)
                 expected, _ = decode_heatmap(expected_map, threshold=_GROUND_TRUTH_THRESHOLD)
-                if expected is None:
-                    if predicted is None:
-                        true_negatives += 1
-                    else:
-                        false_positives += 1
-                    continue
-                if predicted is None:
-                    false_negatives += 1
-                    continue
-                distance = float(np.hypot(predicted[0] - expected[0], predicted[1] - expected[1]))
-                located_errors.append(distance)
-                if distance <= tolerance:
-                    true_positives += 1
-                else:
-                    false_positives += 1
+                pairs.append((predicted, expected))
 
-    errors = np.asarray(located_errors, dtype=np.float64)
-    return Accuracy(
-        frames=true_positives + false_positives + false_negatives + true_negatives,
-        true_positives=true_positives,
-        false_positives=false_positives,
-        false_negatives=false_negatives,
-        true_negatives=true_negatives,
-        median_pixel_error=float(np.median(errors)) if errors.size else 0.0,
-        p90_pixel_error=float(np.percentile(errors, 90)) if errors.size else 0.0,
-    )
+    return score_detections(pairs, tolerance=tolerance)
 
 
 def _load_dataset(
