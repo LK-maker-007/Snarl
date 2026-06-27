@@ -1,9 +1,8 @@
 import {CameraSettings} from '../domain/captureSpec';
 
 export interface CapturedClip {
-  readonly uri: string;
+  readonly uri: string; // filesystem path to the recorded video
   readonly fps: number;
-  readonly frameCount: number;
 }
 
 // The seam between the screens and a real high-speed camera. A native module (or a permissively
