@@ -1,4 +1,5 @@
 import csv
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -38,7 +39,7 @@ def test_synthetic_dataset_item_shapes() -> None:
     assert float(targets.max()) == pytest.approx(1.0)
 
 
-def test_clip_dataset_roundtrip(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_clip_dataset_roundtrip(tmp_path: Path) -> None:
     clip = tmp_path / "clip0"
     clip.mkdir()
     np.save(clip / "frames.npy", np.zeros((4, 16, 16, 3), dtype=np.uint8))
@@ -55,7 +56,7 @@ def test_clip_dataset_roundtrip(tmp_path) -> None:  # type: ignore[no-untyped-de
     assert tuple(targets.shape) == (3, 16, 16)
 
 
-def test_image_clip_dataset_roundtrip(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_image_clip_dataset_roundtrip(tmp_path: Path) -> None:
     from PIL import Image
 
     clip = tmp_path / "clip0"
@@ -75,7 +76,7 @@ def test_image_clip_dataset_roundtrip(tmp_path) -> None:  # type: ignore[no-unty
     assert tuple(targets.shape) == (3, 16, 16)
 
 
-def test_image_clip_dataset_natural_frame_order(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_image_clip_dataset_natural_frame_order(tmp_path: Path) -> None:
     from PIL import Image
 
     clip = tmp_path / "clip0"

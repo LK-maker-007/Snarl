@@ -72,9 +72,12 @@ def _write_clip(root: Path, frames: int, size: tuple[int, int], ball: tuple[int,
     (clip / "labels.csv").write_text("\n".join(lines) + "\n")
 
 
-def test_verify_tflite_matches_ground_truth(
+def test_verify_tflite_scores_the_window_pipeline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # A fake interpreter peaked on the label exercises the window -> decode -> score wiring (one
+    # score per centre frame, perfect predictor -> all true positives). The real accuracy number
+    # comes from running the actual model, not this.
     width, height, ball = 64, 16, (30, 8)
     _write_clip(tmp_path, frames=5, size=(width, height), ball=ball)
     dataset = ImageClipDataset(str(tmp_path), num_frames=3, image_glob="*.jpg")
