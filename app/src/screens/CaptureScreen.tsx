@@ -6,11 +6,36 @@ import {CAPTURE_SPEC, FRAMING_CHECKLIST, checkSettings} from '../domain/captureS
 interface CaptureScreenProps {
   source?: FrameSource;
   onClipCaptured?: (clip: CapturedClip) => void;
+  // Default fail-closed: filming is blocked until a consent record exists (ADR-0008, gate zero).
+  consented?: boolean;
+  onNeedConsent?: () => void;
 }
 
-export function CaptureScreen({source, onClipCaptured}: CaptureScreenProps) {
+export function CaptureScreen({
+  source,
+  onClipCaptured,
+  consented = false,
+  onNeedConsent,
+}: CaptureScreenProps) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+
+  if (!consented) {
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>Record a delivery</Text>
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>
+            Consent is required before filming anyone. Capture the player&apos;s consent (and a
+            parent or guardian&apos;s, for a minor) first.
+          </Text>
+        </View>
+        <Pressable accessibilityRole="button" style={styles.button} onPress={onNeedConsent}>
+          <Text style={styles.buttonText}>Get consent</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
 
   const settingsCheck = source ? checkSettings(source.settings) : undefined;
   const shutterCeiling = Math.round(1 / CAPTURE_SPEC.maxShutterSeconds);

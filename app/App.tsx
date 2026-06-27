@@ -8,14 +8,16 @@ import {
   View,
 } from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
+import {ConsentRecord} from './src/domain/consent';
 import {Delivery} from './src/domain/pitchMap';
 import {demoSource} from './src/ml/demoSource';
 import {CalibrationScreen} from './src/screens/CalibrationScreen';
 import {CaptureScreen} from './src/screens/CaptureScreen';
+import {ConsentScreen} from './src/screens/ConsentScreen';
 import {PitchMapScreen} from './src/screens/PitchMapScreen';
 import {TrackerScreen} from './src/screens/TrackerScreen';
 
-type Screen = 'home' | 'capture' | 'calibration' | 'pitchmap' | 'tracker';
+type Screen = 'home' | 'consent' | 'capture' | 'calibration' | 'pitchmap' | 'tracker';
 
 // Placeholder until the tracker feeds real bounce points; lets the map be seen and laid out.
 const SAMPLE_DELIVERIES: readonly Delivery[] = [
@@ -41,11 +43,17 @@ function App() {
 function AppContent() {
   const insets = useSafeAreaInsets();
   const [screen, setScreen] = useState<Screen>('home');
+  const [consent, setConsent] = useState<ConsentRecord | null>(null);
+
+  const handleConsent = (record: ConsentRecord) => {
+    setConsent(record);
+    setScreen('home');
+  };
 
   return (
     <View style={[styles.container, {paddingTop: insets.top, paddingBottom: insets.bottom}]}>
       {screen === 'home' ? (
-        <HomeScreen onSelect={setScreen} />
+        <HomeScreen onSelect={setScreen} consent={consent} />
       ) : (
         <View style={styles.screen}>
           <Pressable
@@ -54,17 +62,31 @@ function AppContent() {
             onPress={() => setScreen('home')}>
             <Text style={styles.backText}>{'< Back'}</Text>
           </Pressable>
-          <ActiveScreen screen={screen} />
+          <ActiveScreen
+            screen={screen}
+            consent={consent}
+            onConsent={handleConsent}
+            onNeedConsent={() => setScreen('consent')}
+          />
         </View>
       )}
     </View>
   );
 }
 
-function ActiveScreen({screen}: {screen: Exclude<Screen, 'home'>}) {
+interface ActiveScreenProps {
+  screen: Exclude<Screen, 'home'>;
+  consent: ConsentRecord | null;
+  onConsent: (record: ConsentRecord) => void;
+  onNeedConsent: () => void;
+}
+
+function ActiveScreen({screen, consent, onConsent, onNeedConsent}: ActiveScreenProps) {
   switch (screen) {
+    case 'consent':
+      return <ConsentScreen onConsent={onConsent} />;
     case 'capture':
-      return <CaptureScreen />;
+      return <CaptureScreen consented={consent !== null} onNeedConsent={onNeedConsent} />;
     case 'calibration':
       return <CalibrationScreen />;
     case 'pitchmap':
@@ -79,10 +101,24 @@ function ActiveScreen({screen}: {screen: Exclude<Screen, 'home'>}) {
   }
 }
 
-function HomeScreen({onSelect}: {onSelect: (screen: Screen) => void}) {
+function HomeScreen({
+  onSelect,
+  consent,
+}: {
+  onSelect: (screen: Screen) => void;
+  consent: ConsentRecord | null;
+}) {
   return (
     <View style={styles.home}>
       <Text style={styles.title}>Snarl</Text>
+      <Pressable
+        accessibilityRole="button"
+        style={styles.tile}
+        onPress={() => onSelect('consent')}>
+        <Text style={styles.tileText}>
+          {consent === null ? 'Consent & age-gate' : `Consent recorded — ${consent.subjectName}`}
+        </Text>
+      </Pressable>
       <Pressable
         accessibilityRole="button"
         style={styles.tile}
