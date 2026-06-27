@@ -2,12 +2,12 @@ import type {Recorder} from 'react-native-vision-camera';
 import {CameraSettings} from '../domain/captureSpec';
 import {CapturedClip, FrameSource} from './FrameSource';
 
-// Bridges a vision-camera Recorder to the FrameSource seam. Recording is callback-based, so the clip
+// Bridges a camera Recorder to the FrameSource seam. Recording is callback-based, so the clip
 // promise is armed in start() before recording begins and resolved when the finished callback fires
 // after stop(). Only types are imported from the camera library, so this stays unit-testable without
 // the native module. Frame count is not known at recording time — it is determined when frames are
 // extracted from the clip.
-export function createVisionCameraSource(
+export function createCameraRecorderSource(
   recorder: Recorder,
   settings: CameraSettings,
   fps: number,

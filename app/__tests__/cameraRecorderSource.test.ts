@@ -1,5 +1,5 @@
 import type {Recorder} from 'react-native-vision-camera';
-import {createVisionCameraSource} from '../src/camera/createVisionCameraSource';
+import {createCameraRecorderSource} from '../src/camera/cameraRecorderSource';
 import {CameraSettings} from '../src/domain/captureSpec';
 
 const SETTINGS: CameraSettings = {fps: 120, shutterSeconds: 1 / 1000, resolutionHeight: 720};
@@ -21,21 +21,21 @@ function fakeRecorder(filePath: string) {
   return recorder as unknown as Recorder;
 }
 
-describe('createVisionCameraSource', () => {
+describe('createCameraRecorderSource', () => {
   it('resolves stop() with the recorded clip path and fps', async () => {
-    const source = createVisionCameraSource(fakeRecorder('/data/clip.mp4'), SETTINGS, 120);
+    const source = createCameraRecorderSource(fakeRecorder('/data/clip.mp4'), SETTINGS, 120);
     await source.start();
     const clip = await source.stop();
     expect(clip).toEqual({uri: '/data/clip.mp4', fps: 120});
   });
 
   it('exposes the settings it was given', () => {
-    const source = createVisionCameraSource(fakeRecorder('/x'), SETTINGS, 120);
+    const source = createCameraRecorderSource(fakeRecorder('/x'), SETTINGS, 120);
     expect(source.settings).toBe(SETTINGS);
   });
 
   it('rejects stop() when called before start()', async () => {
-    const source = createVisionCameraSource(fakeRecorder('/x'), SETTINGS, 120);
+    const source = createCameraRecorderSource(fakeRecorder('/x'), SETTINGS, 120);
     await expect(source.stop()).rejects.toThrow('stop() called before start()');
   });
 });

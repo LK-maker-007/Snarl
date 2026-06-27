@@ -4,7 +4,6 @@ import {CAPTURE_SPEC, CameraSettings} from '../domain/captureSpec';
 // format type carries far more; the adapter maps to this so the selection logic stays pure and
 // testable without the native library.
 export interface CameraFormat {
-  readonly videoWidth: number;
   readonly videoHeight: number;
   readonly minFps: number;
   readonly maxFps: number;
@@ -23,11 +22,11 @@ function isBetter(candidate: SelectedFormat, best: SelectedFormat): boolean {
   return candidate.format.videoHeight > best.format.videoHeight;
 }
 
-// Pick the format that best meets CAPTURE_SPEC: at or above the resolution and fps floors, then the
-// highest frame rate (capped at the preferred rate), and the highest resolution as a tie-break.
-// Returns null when no format reaches both floors. Shutter is not a format property — it is governed
-// by lighting/exposure and surfaced to the operator via FRAMING_CHECKLIST — so the reported
-// shutterSeconds is the spec target, not a value format selection can guarantee.
+// Pick the format that best meets CAPTURE_SPEC: highest frame rate at or above the floors, with
+// resolution as the tie-break. A format whose own minimum rate exceeds our target is skipped — we
+// could not then record at or below the preferred rate. Shutter is not a format property; it is set
+// by lighting/exposure and surfaced to the operator via FRAMING_CHECKLIST, so the reported
+// shutterSeconds is the spec target, not a value selection can guarantee.
 export function selectCaptureFormat(formats: readonly CameraFormat[]): SelectedFormat | null {
   let best: SelectedFormat | null = null;
   for (const format of formats) {
@@ -38,6 +37,9 @@ export function selectCaptureFormat(formats: readonly CameraFormat[]): SelectedF
       continue;
     }
     const fps = Math.min(format.maxFps, CAPTURE_SPEC.preferredFps);
+    if (fps < format.minFps) {
+      continue;
+    }
     const candidate: SelectedFormat = {
       format,
       fps,
