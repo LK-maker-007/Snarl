@@ -57,7 +57,7 @@ def test_no_extrapolation_beyond_detected_span() -> None:
 
 @pytest.mark.parametrize(
     "kwargs",
-    [{"window": 2}, {"min_points": 2}, {"curve_tolerance": 0.0}],
+    [{"window": 2}, {"min_points": 2}, {"curve_tolerance": 0.0}, {"max_deviation": 0.0}],
 )
 def test_invalid_parameters_raise(kwargs: dict[str, float]) -> None:
     with pytest.raises(ValueError):

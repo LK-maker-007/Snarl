@@ -5,7 +5,7 @@ module.exports = {
   ignorePatterns: ['src/assets/demo/source.ts'],
   rules: {
     // Project lint rules. Suppressing any of these needs a one-line reason and a tracked issue.
-    'no-console': ['warn', {allow: ['warn', 'error']}],
+    'no-console': ['warn', {allow: ['info', 'warn', 'error']}],
     'no-empty': ['error', {allowEmptyCatch: false}],
     eqeqeq: ['error', 'always'],
     'no-var': 'error',

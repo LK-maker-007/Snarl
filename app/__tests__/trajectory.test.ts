@@ -54,6 +54,16 @@ describe('rectifyTrack', () => {
     expect(rectified[9]).toBeNull();
   });
 
+  it('accepts the minimum valid window of 3', () => {
+    const track: (Point | null)[] = parabola(12);
+    const rectified = rectifyTrack(track, {window: 3, minPoints: 3, curveTolerance: 5});
+    expect(rectified).toHaveLength(track.length);
+    const mid = rectified[6];
+    const truth = track[6] as Point;
+    expect(mid).not.toBeNull();
+    expect(Math.abs((mid?.x ?? 0) - truth.x)).toBeLessThanOrEqual(1);
+  });
+
   it('rejects invalid parameters', () => {
     expect(() => rectifyTrack(parabola(8), {window: 2})).toThrow();
     expect(() => rectifyTrack(parabola(8), {minPoints: 2})).toThrow();

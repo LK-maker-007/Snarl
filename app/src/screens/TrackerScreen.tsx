@@ -7,20 +7,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import {TrackerSource} from '../domain/clip';
 import {Point} from '../domain/cricket';
-import {rectifyTrack} from '../domain/trajectory';
 import {log} from '../infra/log';
-import {decodeJpegBase64} from '../ml/decodeJpeg';
-import {createCachedAccessor} from '../ml/frameCache';
-import {loadTfliteRunner} from '../ml/TfliteModelRunner';
-import {trackClip} from '../ml/trackClip';
-
-export interface TrackerSource {
-  readonly frames: readonly string[]; // base64-encoded JPEG frames, in capture order
-  readonly width: number;
-  readonly height: number;
-  readonly fps: number;
-}
+import {analyzeClip} from '../ml/analyzeClip';
 
 type Status = 'analyzing' | 'playing' | 'error';
 
@@ -42,25 +32,7 @@ export function TrackerScreen({source}: {source: TrackerSource}) {
     let cancelled = false;
 
     const analyze = async (): Promise<void> => {
-      const runner = await loadTfliteRunner();
-      const accessor = createCachedAccessor(source.frames.length, index => {
-        const encoded = source.frames[index];
-        if (encoded === undefined) {
-          throw new Error(`missing frame ${index}`);
-        }
-        const frame = decodeJpegBase64(encoded);
-        if (frame.width !== source.width || frame.height !== source.height) {
-          throw new Error(
-            `frame ${index} is ${frame.width}x${frame.height}, expected ` +
-              `${source.width}x${source.height}`,
-          );
-        }
-        return frame.data;
-      });
-      const result = await trackClip(runner, accessor, source.width, source.height);
-      // Clean the raw per-frame track: drop spikes onto distractors and fill short gaps so the
-      // overlaid dot follows a smooth path instead of blinking off or jumping away.
-      const refined = rectifyTrack(result);
+      const refined = await analyzeClip(source);
       if (!cancelled) {
         setTrack(refined);
         setStatus('playing');

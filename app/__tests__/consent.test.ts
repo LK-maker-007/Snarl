@@ -120,6 +120,14 @@ describe('buildConsentRecord', () => {
     expect(result.kind).toBe('invalid');
   });
 
+  it('rejects an implausibly old date of birth (mistyped year)', () => {
+    const result = buildConsentRecord(
+      adultInput({birthDate: {year: AS_OF.getFullYear() - 121, month: 1, day: 1}}),
+      AS_OF,
+    );
+    expect(result.kind).toBe('invalid');
+  });
+
   it('treats exactly the threshold age as an adult', () => {
     const onBirthday = buildConsentRecord(
       adultInput({birthDate: {year: AS_OF.getFullYear() - MINOR_AGE_YEARS, month: 6, day: 27}}),

@@ -110,36 +110,44 @@ function fitEval(
   tolerance: number,
   minPoints: number,
 ): Point | null {
-  let fitX = fitQuadratic(indices, xs);
-  let fitY = fitQuadratic(indices, ys);
+  // Fit in indices centred on the window mean: Σt⁴ grows with the raw frame index (t⁴ ≈ 10⁸ at
+  // frame 100), so centring keeps the normal-equations system well-conditioned in float64.
+  const offset = indices.reduce((sum, index) => sum + index, 0) / indices.length;
+  const centred = indices.map(index => index - offset);
+  let fitX = fitQuadratic(centred, xs);
+  let fitY = fitQuadratic(centred, ys);
   if (fitX === null || fitY === null) {
     return null;
   }
-  const keepIndices: number[] = [];
+  const keepT: number[] = [];
   const keepXs: number[] = [];
   const keepYs: number[] = [];
   let trimmed = false;
-  for (let i = 0; i < indices.length; i += 1) {
-    const t = indices[i] ?? 0;
+  for (let i = 0; i < centred.length; i += 1) {
+    const t = centred[i] ?? 0;
     const x = xs[i] ?? 0;
     const y = ys[i] ?? 0;
     if (Math.hypot(x - evalQuadratic(fitX, t), y - evalQuadratic(fitY, t)) <= tolerance) {
-      keepIndices.push(t);
+      keepT.push(t);
       keepXs.push(x);
       keepYs.push(y);
     } else {
       trimmed = true;
     }
   }
-  if (trimmed && keepIndices.length >= minPoints) {
-    const refitX = fitQuadratic(keepIndices, keepXs);
-    const refitY = fitQuadratic(keepIndices, keepYs);
+  if (trimmed && keepT.length >= minPoints) {
+    const refitX = fitQuadratic(keepT, keepXs);
+    const refitY = fitQuadratic(keepT, keepYs);
     if (refitX !== null && refitY !== null) {
       fitX = refitX;
       fitY = refitY;
     }
   }
-  return {x: Math.round(evalQuadratic(fitX, target)), y: Math.round(evalQuadratic(fitY, target))};
+  const centredTarget = target - offset;
+  return {
+    x: Math.round(evalQuadratic(fitX, centredTarget)),
+    y: Math.round(evalQuadratic(fitY, centredTarget)),
+  };
 }
 
 function curveFill(
