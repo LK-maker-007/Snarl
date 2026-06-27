@@ -3,7 +3,7 @@ import {Point} from '../domain/cricket';
 import {rectifyTrack} from '../domain/trajectory';
 import {decodeJpegBase64} from './decodeJpeg';
 import {createCachedAccessor} from './frameCache';
-import {loadTfliteRunner} from './TfliteModelRunner';
+import {loadNativeModelRunner} from './nativeModelRunner';
 import {trackClip} from './trackClip';
 
 // Run the on-device tracker over a recorded clip and return the cleaned per-frame ball track.
@@ -11,7 +11,7 @@ import {trackClip} from './trackClip';
 // frames in RAM — ADR-0006), runs the sliding 3-frame windows, then rectifies the track. Kept out
 // of the screen so the inference pipeline is reusable and testable without rendering a component.
 export async function analyzeClip(source: TrackerSource): Promise<(Point | null)[]> {
-  const runner = await loadTfliteRunner();
+  const runner = await loadNativeModelRunner();
   const accessor = createCachedAccessor(source.frames.length, index => {
     const encoded = source.frames[index];
     if (encoded === undefined) {

@@ -21,11 +21,11 @@ function getModelAssetModule(): ModelAssetModule {
   return native;
 }
 
-// Adapter from the bundled TFLite model to the ModelRunner seam. react-native-fast-tflite is a
-// native (Nitro) module, so it is required lazily — importing it at module scope would pull native
-// code into environments that don't have it (e.g. the jest runner). The model is a research-only
-// weight bundled as a gitignored asset.
-export async function loadTfliteRunner(
+// Adapter from the bundled model asset to the ModelRunner seam. The inference library is a native
+// (Nitro) module, so it is required lazily — importing it at module scope would pull native code
+// into environments that don't have it (e.g. the jest runner). The model is a research-only weight
+// bundled as a gitignored asset.
+export async function loadNativeModelRunner(
   delegates: TensorflowModelDelegate[] = [],
 ): Promise<ModelRunner> {
   const {loadTensorflowModel} =
@@ -38,7 +38,7 @@ export async function loadTfliteRunner(
       const outputs = await model.run([toArrayBuffer(input)]);
       const output = outputs[0];
       if (output === undefined) {
-        throw new Error('TFLite model returned no output tensor');
+        throw new Error('model returned no output tensor');
       }
       return new Float32Array(output);
     },
