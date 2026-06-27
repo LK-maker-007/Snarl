@@ -8,8 +8,10 @@ import {
   View,
 } from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
+import {CapturedClip} from './src/camera/FrameSource';
 import {ConsentRecord} from './src/domain/consent';
 import {Delivery} from './src/domain/pitchMap';
+import {log} from './src/infra/log';
 import {demoSource} from './src/ml/demoSource';
 import {CalibrationScreen} from './src/screens/CalibrationScreen';
 import {CaptureScreen} from './src/screens/CaptureScreen';
@@ -50,6 +52,12 @@ function AppContent() {
     setScreen('home');
   };
 
+  // Phase A: a recorded clip is logged for observability. Routing it into the tracker comes with
+  // the frame-extraction step (the clip is a video file, the tracker consumes extracted frames).
+  const handleClipCaptured = (clip: CapturedClip) => {
+    log.info('clip captured', {uri: clip.uri, fps: clip.fps});
+  };
+
   return (
     <View style={[styles.container, {paddingTop: insets.top, paddingBottom: insets.bottom}]}>
       {screen === 'home' ? (
@@ -67,6 +75,7 @@ function AppContent() {
             consent={consent}
             onConsent={handleConsent}
             onNeedConsent={() => setScreen('consent')}
+            onClipCaptured={handleClipCaptured}
           />
         </View>
       )}
@@ -79,14 +88,27 @@ interface ActiveScreenProps {
   consent: ConsentRecord | null;
   onConsent: (record: ConsentRecord) => void;
   onNeedConsent: () => void;
+  onClipCaptured: (clip: CapturedClip) => void;
 }
 
-function ActiveScreen({screen, consent, onConsent, onNeedConsent}: ActiveScreenProps) {
+function ActiveScreen({
+  screen,
+  consent,
+  onConsent,
+  onNeedConsent,
+  onClipCaptured,
+}: ActiveScreenProps) {
   switch (screen) {
     case 'consent':
       return <ConsentScreen onConsent={onConsent} />;
     case 'capture':
-      return <CaptureScreen consented={consent !== null} onNeedConsent={onNeedConsent} />;
+      return (
+        <CaptureScreen
+          consented={consent !== null}
+          onNeedConsent={onNeedConsent}
+          onClipCaptured={onClipCaptured}
+        />
+      );
     case 'calibration':
       return <CalibrationScreen />;
     case 'pitchmap':

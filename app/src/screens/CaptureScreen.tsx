@@ -1,24 +1,76 @@
-import {useState} from 'react';
+import {useCallback, useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  Camera,
+  CommonResolutions,
+  useCameraDevice,
+  useCameraPermission,
+  useVideoOutput,
+} from 'react-native-vision-camera';
 import {CapturedClip, FrameSource} from '../camera/FrameSource';
-import {CAPTURE_SPEC, FRAMING_CHECKLIST, checkSettings} from '../domain/captureSpec';
+import {createCameraRecorderSource} from '../camera/cameraRecorderSource';
+import {CAPTURE_SPEC, CameraSettings, FRAMING_CHECKLIST, checkSettings} from '../domain/captureSpec';
+import {log} from '../infra/log';
 
 interface CaptureScreenProps {
-  source?: FrameSource;
-  onClipCaptured?: (clip: CapturedClip) => void;
   // Default fail-closed: filming is blocked until a consent record exists (ADR-0008, gate zero).
   consented?: boolean;
   onNeedConsent?: () => void;
+  onClipCaptured?: (clip: CapturedClip) => void;
 }
 
+// 720p capture target; the tracker downscales to its own input size when frames are extracted. The
+// shorter dimension is the conventional "p" resolution the capture spec gates on.
+const TARGET_RESOLUTION = CommonResolutions.HD_16_9;
+const TARGET_HEIGHT = Math.min(TARGET_RESOLUTION.width, TARGET_RESOLUTION.height);
+
 export function CaptureScreen({
-  source,
-  onClipCaptured,
   consented = false,
   onNeedConsent,
+  onClipCaptured,
 }: CaptureScreenProps) {
-  const [recording, setRecording] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
+  const {hasPermission, requestPermission} = useCameraPermission();
+  const device = useCameraDevice('back');
+  const videoOutput = useVideoOutput({targetResolution: TARGET_RESOLUTION, enableAudio: false});
+
+  // The camera reports the frame rate it actually configured; until then, assume the requested rate.
+  const [fps, setFps] = useState<number>(CAPTURE_SPEC.preferredFps);
+  const [source, setSource] = useState<FrameSource | null>(null);
+  const [lastClip, setLastClip] = useState<CapturedClip | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const settings: CameraSettings = useMemo(
+    () => ({fps, shutterSeconds: CAPTURE_SPEC.maxShutterSeconds, resolutionHeight: TARGET_HEIGHT}),
+    [fps],
+  );
+
+  const beginRecording = useCallback(async () => {
+    setError(null);
+    setLastClip(null);
+    const recorder = await videoOutput.createRecorder({});
+    const next = createCameraRecorderSource(recorder, settings, fps);
+    await next.start();
+    setSource(next);
+  }, [videoOutput, settings, fps]);
+
+  const endRecording = useCallback(
+    async (active: FrameSource) => {
+      const clip = await active.stop();
+      setSource(null);
+      setLastClip(clip);
+      onClipCaptured?.(clip);
+    },
+    [onClipCaptured],
+  );
+
+  const handleRecordPress = () => {
+    const action = source === null ? beginRecording() : endRecording(source);
+    action.catch((caught: unknown) => {
+      log.error('capture failed', {reason: String(caught)});
+      setError(caught instanceof Error ? caught.message : 'capture failed');
+      setSource(null);
+    });
+  };
 
   if (!consented) {
     return (
@@ -37,55 +89,60 @@ export function CaptureScreen({
     );
   }
 
-  const settingsCheck = source ? checkSettings(source.settings) : undefined;
-  const shutterCeiling = Math.round(1 / CAPTURE_SPEC.maxShutterSeconds);
+  if (!hasPermission) {
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>Record a delivery</Text>
+        <Text style={styles.note}>The camera needs permission before it can record.</Text>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.button}
+          onPress={() => {
+            requestPermission().catch((caught: unknown) => {
+              setError(caught instanceof Error ? caught.message : 'permission request failed');
+            });
+          }}>
+          <Text style={styles.buttonText}>Grant camera access</Text>
+        </Pressable>
+        {error ? <Text style={styles.warningText}>{error}</Text> : null}
+      </ScrollView>
+    );
+  }
 
-  const toggleRecording = async () => {
-    if (!source) {
-      return;
-    }
-    if (recording) {
-      const clip = await source.stop();
-      setRecording(false);
-      onClipCaptured?.(clip);
-    } else {
-      setError(undefined);
-      await source.start();
-      setRecording(true);
-    }
-  };
+  if (device === undefined) {
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>Record a delivery</Text>
+        <Text style={styles.note}>No back camera is available on this device.</Text>
+      </ScrollView>
+    );
+  }
 
-  const handleRecordPress = () => {
-    toggleRecording().catch(caught => {
-      setError(caught instanceof Error ? caught.message : 'capture failed');
-      setRecording(false);
-    });
-  };
+  const recording = source !== null;
+  const settingsCheck = checkSettings(settings);
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Record a delivery</Text>
       <Text style={styles.note}>
-        Capture to spec, then process the clip afterwards. Never run the tracker while recording.
+        Capture to spec, then process the clip afterwards. The tracker never runs while recording.
       </Text>
 
-      <Text style={styles.sectionTitle}>Camera must meet</Text>
-      <Text style={styles.item}>
-        {`Frame rate at least ${CAPTURE_SPEC.minFps} fps (prefer ${CAPTURE_SPEC.preferredFps})`}
-      </Text>
-      <Text style={styles.item}>{`Shutter no slower than 1/${shutterCeiling} s`}</Text>
-      <Text style={styles.item}>
-        {`Resolution at least ${CAPTURE_SPEC.minResolutionHeight}p (prefer ${CAPTURE_SPEC.preferredResolutionHeight}p)`}
-      </Text>
+      <Camera
+        style={styles.preview}
+        device={device}
+        isActive={true}
+        outputs={[videoOutput]}
+        constraints={[{fps: CAPTURE_SPEC.preferredFps}]}
+        onSessionConfigSelected={config => {
+          if (config.selectedFPS !== undefined) {
+            setFps(config.selectedFPS);
+          }
+        }}
+      />
 
-      <Text style={styles.sectionTitle}>Before you record</Text>
-      {FRAMING_CHECKLIST.map(rule => (
-        <Text key={rule} style={styles.item}>
-          {`• ${rule}`}
-        </Text>
-      ))}
-
-      {settingsCheck && !settingsCheck.ok ? (
+      <Text style={styles.status}>{`Recording at ${fps} fps · ${TARGET_HEIGHT}p`}</Text>
+      {!settingsCheck.ok ? (
         <View style={styles.warning}>
           {settingsCheck.failures.map(failure => (
             <Text key={failure} style={styles.warningText}>
@@ -95,20 +152,23 @@ export function CaptureScreen({
         </View>
       ) : null}
 
-      {source ? (
-        <Pressable
-          accessibilityRole="button"
-          style={[styles.button, recording ? styles.buttonRecording : null]}
-          onPress={handleRecordPress}>
-          <Text style={styles.buttonText}>{recording ? 'Stop' : 'Record'}</Text>
-        </Pressable>
-      ) : (
-        <Text style={styles.unavailable}>
-          Camera is not available in this build. Film with a 120 fps+ camera app and import the
-          clip for processing.
+      <Text style={styles.sectionTitle}>Before you record</Text>
+      {FRAMING_CHECKLIST.map(rule => (
+        <Text key={rule} style={styles.item}>
+          {`• ${rule}`}
         </Text>
-      )}
+      ))}
 
+      <Pressable
+        accessibilityRole="button"
+        style={[styles.button, recording ? styles.buttonRecording : null]}
+        onPress={handleRecordPress}>
+        <Text style={styles.buttonText}>{recording ? 'Stop' : 'Record'}</Text>
+      </Pressable>
+
+      {lastClip ? (
+        <Text style={styles.status}>{`Recorded: ${lastClip.uri}`}</Text>
+      ) : null}
       {error ? <Text style={styles.warningText}>{error}</Text> : null}
     </ScrollView>
   );
@@ -129,6 +189,18 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginBottom: 12,
   },
+  preview: {
+    width: '100%',
+    aspectRatio: 9 / 16,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
+  },
+  status: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -140,7 +212,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   warning: {
-    marginTop: 16,
+    marginTop: 12,
     padding: 12,
     borderRadius: 8,
     backgroundColor: '#3a1d1d',
@@ -163,10 +235,5 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  unavailable: {
-    marginTop: 24,
-    fontSize: 14,
-    opacity: 0.7,
   },
 });
