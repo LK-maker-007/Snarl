@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {
   Pressable,
   StatusBar,
@@ -10,7 +10,9 @@ import {
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {CapturedClip} from './src/camera/FrameSource';
 import {ConsentRecord} from './src/domain/consent';
+import {ConsentStore, formatConsentId} from './src/domain/consentLog';
 import {Delivery} from './src/domain/pitchMap';
+import {createEncryptedConsentStore} from './src/infra/encryptedConsentStore';
 import {log} from './src/infra/log';
 import {demoSource} from './src/ml/demoSource';
 import {CalibrationScreen} from './src/screens/CalibrationScreen';
@@ -46,16 +48,41 @@ function AppContent() {
   const insets = useSafeAreaInsets();
   const [screen, setScreen] = useState<Screen>('home');
   const [consent, setConsent] = useState<ConsentRecord | null>(null);
+  const [store, setStore] = useState<ConsentStore | null>(null);
+  const [activeConsentId, setActiveConsentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    createEncryptedConsentStore()
+      .then(setStore)
+      .catch((reason: unknown) => log.error('consent store init failed', {reason: String(reason)}));
+  }, []);
 
   const handleConsent = (record: ConsentRecord) => {
+    const consentId = formatConsentId(Date.now(), Math.random().toString(36).slice(2, 10) || '0');
+    if (store === null) {
+      log.warn('consent not persisted — store still initializing');
+    } else {
+      store.saveConsent({consentId, record});
+    }
     setConsent(record);
+    setActiveConsentId(consentId);
     setScreen('home');
   };
 
-  // Phase A: a recorded clip is logged for observability. Routing it into the tracker comes with
-  // the frame-extraction step (the clip is a video file, the tracker consumes extracted frames).
+  // Persist each recorded clip linked to the active consent (ADR-0008). Routing it into the tracker
+  // comes with the frame-extraction step (the clip is a video file; the tracker consumes frames).
   const handleClipCaptured = (clip: CapturedClip) => {
-    log.info('clip captured', {uri: clip.uri, fps: clip.fps});
+    if (store === null || activeConsentId === null) {
+      log.warn('clip not linked', {hasStore: store !== null, hasConsent: activeConsentId !== null});
+      return;
+    }
+    store.saveClip({
+      clipUri: clip.uri,
+      fps: clip.fps,
+      consentId: activeConsentId,
+      capturedAt: new Date().toISOString(),
+    });
+    log.info('clip captured', {fps: clip.fps});
   };
 
   return (
