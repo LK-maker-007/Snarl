@@ -14,6 +14,7 @@ import {ConsentStore, formatConsentId} from './src/domain/consentLog';
 import {Delivery} from './src/domain/pitchMap';
 import {createEncryptedConsentStore} from './src/infra/encryptedConsentStore';
 import {log} from './src/infra/log';
+import {randomHex} from './src/infra/random';
 import {demoSource} from './src/ml/demoSource';
 import {CalibrationScreen} from './src/screens/CalibrationScreen';
 import {CaptureScreen} from './src/screens/CaptureScreen';
@@ -58,12 +59,14 @@ function AppContent() {
   }, []);
 
   const handleConsent = (record: ConsentRecord) => {
-    const consentId = formatConsentId(Date.now(), Math.random().toString(36).slice(2, 10) || '0');
     if (store === null) {
-      log.warn('consent not persisted — store still initializing');
-    } else {
-      store.saveConsent({consentId, record});
+      // The submit button is gated on store readiness, so this is defensive: never accept consent
+      // we cannot persist — the record must be auditable (ADR-0008), not held only in memory.
+      log.error('consent rejected — secure store not ready');
+      return;
     }
+    const consentId = formatConsentId(Date.now(), randomHex(8));
+    store.saveConsent({consentId, record});
     setConsent(record);
     setActiveConsentId(consentId);
     setScreen('home');
@@ -100,6 +103,7 @@ function AppContent() {
           <ActiveScreen
             screen={screen}
             consent={consent}
+            consentReady={store !== null}
             onConsent={handleConsent}
             onNeedConsent={() => setScreen('consent')}
             onClipCaptured={handleClipCaptured}
@@ -113,6 +117,7 @@ function AppContent() {
 interface ActiveScreenProps {
   screen: Exclude<Screen, 'home'>;
   consent: ConsentRecord | null;
+  consentReady: boolean;
   onConsent: (record: ConsentRecord) => void;
   onNeedConsent: () => void;
   onClipCaptured: (clip: CapturedClip) => void;
@@ -121,13 +126,14 @@ interface ActiveScreenProps {
 function ActiveScreen({
   screen,
   consent,
+  consentReady,
   onConsent,
   onNeedConsent,
   onClipCaptured,
 }: ActiveScreenProps) {
   switch (screen) {
     case 'consent':
-      return <ConsentScreen onConsent={onConsent} />;
+      return <ConsentScreen onConsent={onConsent} ready={consentReady} />;
     case 'capture':
       return (
         <CaptureScreen

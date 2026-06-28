@@ -17,6 +17,9 @@ import {
 
 interface ConsentScreenProps {
   onConsent: (record: ConsentRecord) => void;
+  // Gates submission on the encrypted store being ready, so consent is never accepted before it can
+  // be persisted (ADR-0008). Defaults true for standalone use/tests.
+  ready?: boolean;
   // Injectable "now" so the age hint and the recorded consent share one instant and tests are
   // deterministic; defaults to the real clock in the app.
   asOf?: Date;
@@ -27,7 +30,7 @@ function toNumber(text: string): number {
   return text.trim() === '' ? Number.NaN : Number(text);
 }
 
-export function ConsentScreen({onConsent, asOf}: ConsentScreenProps) {
+export function ConsentScreen({onConsent, ready = true, asOf}: ConsentScreenProps) {
   const [subjectName, setSubjectName] = useState('');
   const [day, setDay] = useState('');
   const [month, setMonth] = useState('');
@@ -162,7 +165,12 @@ export function ConsentScreen({onConsent, asOf}: ConsentScreenProps) {
         </View>
       ) : null}
 
-      <Pressable accessibilityRole="button" style={styles.button} onPress={handleSubmit}>
+      {ready ? null : <Text style={styles.note}>Preparing secure storage…</Text>}
+      <Pressable
+        accessibilityRole="button"
+        style={[styles.button, ready ? null : styles.buttonDisabled]}
+        disabled={!ready}
+        onPress={handleSubmit}>
         <Text style={styles.buttonText}>Record consent</Text>
       </Pressable>
     </ScrollView>
@@ -253,6 +261,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#1d6f3a',
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   buttonText: {
     color: 'white',
